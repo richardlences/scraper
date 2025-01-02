@@ -41,6 +41,7 @@ var axios_retry_1 = require("axios-retry");
 var cheerio_1 = require("cheerio");
 var pg_1 = require("pg");
 var fs_1 = require("fs");
+var child_process_1 = require("child_process");
 function createAxiosInstance() {
     var instance = axios_1.default.create({
         // baseURL: 'https://www.nay.sk', // Set base URL
@@ -63,80 +64,63 @@ function createAxiosInstance() {
     return instance;
 }
 ;
-function scrapeSite() {
+function scrapeSite(num) {
     return __awaiter(this, void 0, void 0, function () {
-        var file, names, _loop_1, _i, file_1, line;
+        var products, axiosInstance, file, _loop_1, i;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
-                    file = (0, fs_1.readFileSync)("./unique.txt", "utf-8").split("\n");
-                    names = new Set;
-                    _loop_1 = function (line) {
-                        var products, baseSite, axiosInstance, response, $, numPages, pagination, i, productsHTML;
+                    products = [];
+                    axiosInstance = createAxiosInstance();
+                    file = (0, fs_1.readFileSync)("urlsWithPage.txt", "utf-8").split("\n");
+                    _loop_1 = function (i) {
+                        var site, response, $_1, productsHTML, err_1;
                         return __generator(this, function (_b) {
                             switch (_b.label) {
                                 case 0:
-                                    products = [];
-                                    baseSite = line;
-                                    axiosInstance = createAxiosInstance();
-                                    return [4 /*yield*/, axiosInstance.get(line)];
+                                    _b.trys.push([0, 2, , 3]);
+                                    site = file[i];
+                                    return [4 /*yield*/, axiosInstance.get(site)];
                                 case 1:
                                     response = _b.sent();
-                                    $ = (0, cheerio_1.load)(response.data);
-                                    numPages = 1;
-                                    pagination = $(".pagination");
-                                    if (pagination.length > 0) {
-                                        numPages = Number(pagination.find("li").eq(-2).text());
-                                    }
-                                    i = 0;
-                                    _b.label = 2;
-                                case 2:
-                                    if (!(i < numPages)) return [3 /*break*/, 5];
-                                    return [4 /*yield*/, axiosInstance.get("".concat(baseSite, "?page=").concat(i + 1))];
-                                case 3:
-                                    response = _b.sent();
-                                    $ = (0, cheerio_1.load)(response.data);
-                                    productsHTML = $(".product-box--main");
+                                    $_1 = (0, cheerio_1.load)(response.data);
+                                    productsHTML = $_1(".product-box--main");
                                     productsHTML.each(function (i, productHTML) {
-                                        var name = $(productHTML).find("h3").first().text().trim();
-                                        if (names.has(name)) {
-                                            return;
-                                        }
-                                        var price = $(productHTML).find(".product-box__price-bundle strong").first().text().replace(/\u00a0/g, "").replace(/,/, ".");
-                                        var productType = $(productHTML).find(".product-box__parameters").first().text().split(", ").at(0) || "unknown";
+                                        var name = $_1(productHTML).find("h3").first().text().trim();
+                                        var price = $_1(productHTML).find(".product-box__price-bundle strong").first().text().replace(/\u00a0/g, "").replace(/,/, ".");
+                                        var productType = $_1(productHTML).find(".product-box__parameters").first().text().split(", ").at(0) || "unknown";
                                         var product = {
                                             Name: name,
                                             Price: Number(price.slice(0, -1)),
                                             Type: productType.trim()
                                         };
                                         products.push(product);
-                                        names.add(name);
                                     });
-                                    _b.label = 4;
-                                case 4:
-                                    i++;
-                                    return [3 /*break*/, 2];
-                                case 5: return [4 /*yield*/, writeToDB(products)];
-                                case 6:
-                                    _b.sent();
-                                    console.log("written: " + baseSite);
-                                    return [2 /*return*/];
+                                    console.log(i);
+                                    return [3 /*break*/, 3];
+                                case 2:
+                                    err_1 = _b.sent();
+                                    console.error("error", err_1);
+                                    return [3 /*break*/, 3];
+                                case 3: return [2 /*return*/];
                             }
                         });
                     };
-                    _i = 0, file_1 = file;
+                    i = num;
                     _a.label = 1;
                 case 1:
-                    if (!(_i < file_1.length)) return [3 /*break*/, 4];
-                    line = file_1[_i];
-                    return [5 /*yield**/, _loop_1(line)];
+                    if (!(i < file.length)) return [3 /*break*/, 4];
+                    return [5 /*yield**/, _loop_1(i)];
                 case 2:
                     _a.sent();
                     _a.label = 3;
                 case 3:
-                    _i++;
+                    i += threads;
                     return [3 /*break*/, 1];
-                case 4: return [2 /*return*/];
+                case 4: return [4 /*yield*/, writeToDB(products)];
+                case 5:
+                    _a.sent();
+                    return [2 /*return*/];
             }
         });
     });
@@ -150,7 +134,7 @@ var client = new pg_1.Client({
 });
 function connectToDB() {
     return __awaiter(this, void 0, void 0, function () {
-        var err_1;
+        var err_2;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -158,11 +142,11 @@ function connectToDB() {
                     return [4 /*yield*/, client.connect()];
                 case 1:
                     _a.sent();
-                    console.log("Successfully connected to database");
+                    console.log(JSON.stringify("Successfully connected to database"));
                     return [3 /*break*/, 3];
                 case 2:
-                    err_1 = _a.sent();
-                    console.error("There was an error connecting to database", err_1);
+                    err_2 = _a.sent();
+                    console.error("There was an error connecting to database", err_2);
                     return [3 /*break*/, 3];
                 case 3: return [2 /*return*/];
             }
@@ -171,7 +155,7 @@ function connectToDB() {
 }
 function writeToDB(products) {
     return __awaiter(this, void 0, void 0, function () {
-        var _i, products_1, product, err_2;
+        var _i, products_1, product, err_3;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -188,8 +172,8 @@ function writeToDB(products) {
                     _a.sent();
                     return [3 /*break*/, 5];
                 case 4:
-                    err_2 = _a.sent();
-                    console.error("There was an error writing to the database", err_2);
+                    err_3 = _a.sent();
+                    console.error("There was an error writing to the database", err_3);
                     return [3 /*break*/, 5];
                 case 5:
                     _i++;
@@ -199,20 +183,48 @@ function writeToDB(products) {
         });
     });
 }
+var threads = 150;
 function main() {
     return __awaiter(this, void 0, void 0, function () {
+        var thread, _loop_2, i;
         return __generator(this, function (_a) {
             switch (_a.label) {
-                case 0: return [4 /*yield*/, connectToDB()];
-                case 1:
-                    _a.sent();
-                    return [4 /*yield*/, scrapeSite()];
+                case 0:
+                    console.error(JSON.stringify("zacatek"));
+                    thread = process.argv[2];
+                    if (!!thread) return [3 /*break*/, 1];
+                    _loop_2 = function (i) {
+                        var child = (0, child_process_1.spawn)("node", ["scraper.js", i.toString()]);
+                        var arr = [];
+                        child.stdout.on('data', function (data) {
+                            console.log(JSON.parse(data));
+                        });
+                        child.stderr.on('data', function (error) {
+                            arr.push(error);
+                        }).on("end", function () {
+                            var buffer = Buffer.concat(arr);
+                            console.error(JSON.parse(buffer.toString()));
+                        });
+                    };
+                    // pusti vsetky
+                    for (i = 0; i < threads; i++) {
+                        _loop_2(i);
+                    }
+                    return [3 /*break*/, 5];
+                case 1: 
+                // pust jedn
+                return [4 /*yield*/, connectToDB()];
                 case 2:
+                    // pust jedn
                     _a.sent();
-                    return [4 /*yield*/, client.end()];
+                    return [4 /*yield*/, scrapeSite(Number(thread))];
                 case 3:
                     _a.sent();
-                    return [2 /*return*/];
+                    return [4 /*yield*/, client.end()];
+                case 4:
+                    _a.sent();
+                    _a.label = 5;
+                case 5: return [2 /*return*/];
             }
         });
     });
